@@ -1,2 +1,5 @@
 .idea/**
 .git/
+test.txt
+input.txt
+*.log
