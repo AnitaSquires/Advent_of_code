@@ -1,79 +1,111 @@
-def parse_map(map_input):
+from collections import defaultdict
+
+
+def get_antennas(grid):
     """
-    Parse the input map into a dictionary of frequencies and their locations.
+    Parse the grid to find all antennas.
 
-    :param map_input: Multi-line string representing the map
-    :return: Dictionary with frequencies as keys and lists of their locations as values
+    Args:
+        grid (list of str): A list of strings representing the grid.
+
+    Returns:
+        dict: A dictionary where the keys are antenna identifiers (e.g., 'A', 'B', etc.),
+              and the values are lists of (row, col) coordinates of each antenna's location.
     """
-    frequencies = {}
-    for y, row in enumerate(map_input.strip().split('\n')):
-        for x, char in enumerate(row):
-            if char != '.':
-                if char not in frequencies:
-                    frequencies[char] = []
-                frequencies[char].append((x, y))
-    return frequencies
+    antennas = defaultdict(list)
+
+    for row, line in enumerate(grid):  # Iterate over each row in the grid
+        for col, char in enumerate(line):  # Iterate over each character in the row
+            if char != ".":  # If the character is not '.', it's an antenna
+                antennas[char].append((row, col))
+
+    return antennas
 
 
-def find_antinodes(freq_locations):
+def on_grid(node, n_rows, n_cols):
     """
-    Find antinodes for a specific frequency.
+    Check if a given coordinate is within the bounds of the grid.
 
-    :param freq_locations: List of (x, y) tuples for antennas of the same frequency
-    :return: Set of unique antinode locations
+    Args:
+        node (tuple): A tuple (row, col) representing the position to check.
+        n_rows (int): Total number of rows in the grid.
+        n_cols (int): Total number of columns in the grid.
+
+    Returns:
+        bool: True if the node is within bounds, False otherwise.
     """
-    antinodes = set()
-    for i in range(len(freq_locations)):
-        for j in range(i + 1, len(freq_locations)):
-            x1, y1 = freq_locations[i]
-            x2, y2 = freq_locations[j]
-
-            # Calculate midpoint and direction
-            dx = x2 - x1
-            dy = y2 - y1
-
-            # Midpoint
-            mid_x = (x1 + x2) / 2
-            mid_y = (y1 + y2) / 2
-
-            # Two possible antinodes (one on each side of the midpoint)
-            antinode1_x = mid_x + dy
-            antinode1_y = mid_y - dx
-
-            antinode2_x = mid_x - dy
-            antinode2_y = mid_y + dx
-
-            antinodes.add((round(antinode1_x), round(antinode1_y)))
-            antinodes.add((round(antinode2_x), round(antinode2_y)))
-
-    return antinodes
+    return 0 <= node[0] < n_rows and 0 <= node[1] < n_cols
 
 
-def calculate_total_antinodes(map_input):
+def main():
     """
-    Calculate the total unique antinode locations in the map.
+    Main function to compute the number of unique antinodes based on a given grid.
 
-    :param map_input: Multi-line string representing the map
-    :return: Number of unique antinode locations
+    Part 1:
+        - Identify antinodes (potential connections) that are reachable by moving in the
+          reverse direction from an antenna pair until out of bounds.
+
+    Part 2:
+        - Additionally identify all intermediate antinodes that can be visited along the
+          path from one antenna to another.
     """
-    # Parse the map into frequencies
-    frequencies = parse_map(map_input)
+    # Read the grid from input.txt
+    with open("input.txt", "rt") as f:
+        grid = [line.strip() for line in f]  # Strip whitespace and read lines into a list
+        n_rows, n_cols = len(grid), len(grid[0])  # Get grid dimensions
 
-    # Set to store unique antinode locations
-    all_antinodes = set()
+    # Get the coordinates of all antennas grouped by their identifiers
+    antennas = get_antennas(grid)
 
-    # Find antinodes for each frequency group
-    for freq, locations in frequencies.items():
-        if len(locations) > 1:
-            # Find antinodes for this frequency
-            freq_antinodes = find_antinodes(locations)
-            all_antinodes.update(freq_antinodes)
+    # Sets to track antinodes for Part 1 and Part 2
+    antinodes_part1 = set()
+    antinodes_part2 = set()
 
-    return len(all_antinodes)
+    # Iterate over each group of antenna locations
+    for locations in antennas.values():
+        if len(locations) == 1:  # Skip antennas with only one location
+            continue
+
+        # Compare every pair of antenna locations in the group
+        for i1 in range(len(locations) - 1):
+            loc1 = locations[i1]  # First antenna location
+
+            for i2 in range(i1 + 1, len(locations)):
+                loc2 = locations[i2]  # Second antenna location
+                row_diff, coll_diff = loc2[0] - loc1[0], loc2[1] - loc1[1]  # Difference vector
+
+                # Add both locations to Part 2 (they are always part of the path)
+                antinodes_part2.add(loc1)
+                antinodes_part2.add(loc2)
+
+                # Move backward from loc1 in the opposite direction of the difference vector
+                antinode = (loc1[0] - row_diff, loc1[1] - coll_diff)
+                if on_grid(antinode, n_rows, n_cols):  # Ensure it's within grid bounds
+                    antinodes_part1.add(antinode)  # Add to Part 1
+                    # Continue moving backward until out of bounds
+                    while on_grid(
+                            antinode := (antinode[0] - row_diff, antinode[1] - coll_diff),
+                            n_rows,
+                            n_cols,
+                    ):
+                        antinodes_part2.add(antinode)  # Add to Part 2
+
+                # Move forward from loc2 in the direction of the difference vector
+                antinode = (loc2[0] + row_diff, loc2[1] + coll_diff)
+                if on_grid(antinode, n_rows, n_cols):  # Ensure it's within grid bounds
+                    antinodes_part1.add(antinode)  # Add to Part 1
+                    # Continue moving forward until out of bounds
+                    while on_grid(
+                            antinode := (antinode[0] + row_diff, antinode[1] + coll_diff),
+                            n_rows,
+                            n_cols,
+                    ):
+                        antinodes_part2.add(antinode)  # Add to Part 2
+
+    # Output results
+    print(f"Part 1: {len(antinodes_part1)}")  # Unique antinodes for Part 1
+    print(f"Part 2: {len(antinodes_part1 | antinodes_part2)}")  # Union of both sets
 
 
-# Read input from test.txt
-with open('test.txt', 'r') as file:
-    input_map = file.read()
-
-print("Total unique antinode locations:", calculate_total_antinodes(input_map))
+if __name__ == "__main__":
+    main()
